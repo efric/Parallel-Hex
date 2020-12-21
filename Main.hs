@@ -1,12 +1,28 @@
 {-# LANGUAGE GADTs, FlexibleContexts #-} 
 
 module Main where
-import Math.Geometry.Grid.Hexagonal
+import Math.Geometry.Grid.Hexagonal ( paraHexGrid )
+import Math.Geometry.Grid
 import qualified Math.Geometry.GridMap as M
-import Math.Geometry.GridMap.Lazy
+import Math.Geometry.GridMap.Lazy ( lazyGridMap )
 import Text.Read
+import Data.List
+
+
+
+
+computeValidMoves grid_map = (get_positions grid_map) \\ (used_tiles grid_map)
+    where get_positions grid_map = indices $ M.toGrid grid_map
+          used_tiles grid_map = [fst f | f <- M.toList grid_map]
+
+
+
+
+
+
 
 -- ask user for how much time AI should spend
+askTime :: IO Double
 askTime = do
     putStrLn "How many seconds should the AI have to compute each move? (Default is 0.2)"
     response <- getLine
@@ -17,6 +33,7 @@ askTime = do
             Nothing -> askTime --if it aint, ask again
 
 -- ask user for how big the board should be 
+askSize :: IO Integer
 askSize = do
     putStrLn "How big should the Hex board be? (Default is 11)"
     response <- getLine
@@ -31,6 +48,7 @@ main = do
      time <- askTime
      size <- askSize
      putStrLn (draw 26 hex_b) -- hardcoded example
+     putStrLn (show (computeValidMoves (hex_b)))
      return ()
 
 -- not sure how to do function signature w external library yet..

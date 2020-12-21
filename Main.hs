@@ -8,14 +8,50 @@ import Math.Geometry.GridMap.Lazy ( lazyGridMap )
 import Text.Read
 import Data.List
 
-
-
-
 computeValidMoves grid_map = (get_positions grid_map) \\ (used_tiles grid_map)
     where get_positions grid_map = indices $ M.toGrid grid_map
-          used_tiles grid_map = [fst f | f <- M.toList grid_map]
+          used_tiles grid_map = [fst x | x <- M.toList grid_map]
+
+-- countConnected color grid_map = fst $ countConnectedRec (head same_color) same_color grid_map 0
+--     where same_color = getSameColor color (M.toList grid_map)
 
 
+-- countConnectedRec :: (Eq a, Eq b) => (a, b) -> [(a, b)] -> g -> Int -> (Int, [(a, b)])
+-- countConnectedRec node remaining_of_same_color grid_map curr_count = let new_remaining = (remaining_of_same_color \\ (node : same_neighbours))
+--                                                                 in (curr_count + length same_neighbours, new_remaining) 
+--                                                                 where same_neighbours = getSameColor (snd node) (neighbours grid_map node) `intersect` remaining_of_same_color
+
+getSameColor :: Eq b => b -> [(a, b)] -> [a]
+getSameColor color grid_list = [fst x | x <- grid_list, snd x == color]
+
+
+
+p1Max grid_map heuristic depth_limit curr_depth = pxMax "A" grid_map heuristic depth_limit curr_depth
+
+
+p2Max grid_map heuristic depth_limit curr_depth = pxMax "B" grid_map heuristic depth_limit curr_depth
+
+
+
+-- TODO: Types dont match since minimax_find_min and find_max return a tuple, but pxMax should right now is returning just the heuristic value. This is wrong. Check that this works
+pxMax color grid_map heuristic depth_limit curr_depth = if curr_depth == depth_limit 
+                                                        then (heuristic anti_color grid_map, (-1,-1))
+                                                        else 
+                                                            case color of
+                                                                "A" -> minimax_find_min (map (\move -> fst (p2Max (M.insert move color grid_map) heuristic depth_limit (curr_depth + 1), move) ) $ computeValidMoves grid_map) 0 
+                                                                "B" -> minimax_find_max (map (\move -> fst (p1Max (M.insert move color grid_map) heuristic depth_limit (curr_depth + 1), move) ) $ computeValidMoves grid_map) 0
+                                                        where 
+                                                              anti_color = case color of 
+                                                                                "A" -> "B"
+                                                                                "B" -> "A"
+
+minimax_find_min []     curr_max = curr_max
+minimax_find_min (m:ms) curr_max = if (fst m) < (fst curr_max) then minimax_find_min ms m else minimax_find_min ms curr_max 
+minimax_find_max []     curr_max = curr_max
+minimax_find_max (m:ms) curr_max = if (fst m) > (fst curr_max) then minimax_find_min ms m else minimax_find_min ms curr_max 
+
+
+minimax grid_map depth_limit heuristic = map (\move -> p2Max (M.insert move "A" grid_map) heuristic depth_limit 1) $ computeValidMoves grid_map
 
 
 

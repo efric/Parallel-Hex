@@ -33,13 +33,13 @@ p2Max grid_map heuristic depth_limit curr_depth = pxMax "B" grid_map heuristic d
 
 
 
--- TODO: Types dont match since minimax_find_min and find_max return a tuple, but pxMax should right now is returning just the heuristic value. This is wrong. Check that this works
+-- TODO: Types dont match since minimax_find_min and find_max return a tuple, but pxMax should right now is returning just the heuristic value. This is wrong.
 pxMax color grid_map heuristic depth_limit curr_depth = if curr_depth == depth_limit 
-                                                        then (heuristic anti_color grid_map, (-1,-1))
+                                                        then ( heuristic anti_color grid_map, (-1,-1) )
                                                         else 
                                                             case color of
-                                                                "A" -> minimax_find_min (map (\move -> fst (p2Max (M.insert move color grid_map) heuristic depth_limit (curr_depth + 1), move) ) $ computeValidMoves grid_map) 0 
-                                                                "B" -> minimax_find_max (map (\move -> fst (p1Max (M.insert move color grid_map) heuristic depth_limit (curr_depth + 1), move) ) $ computeValidMoves grid_map) 0
+                                                                "A" -> minimax_find_min (map (\move -> (fst (p2Max (M.insert move color grid_map) heuristic depth_limit (curr_depth + 1)), move) )  (computeValidMoves grid_map) ) 0 
+                                                                "B" -> minimax_find_max (map (\move -> (fst (p1Max (M.insert move color grid_map) heuristic depth_limit (curr_depth + 1)), move) )  (computeValidMoves grid_map) ) 0
                                                         where 
                                                               anti_color = case color of 
                                                                                 "A" -> "B"

@@ -2,17 +2,17 @@
 
 module Main where
 import Math.Geometry.Grid.Hexagonal ( paraHexGrid )
-import Math.Geometry.Grid
+import qualified Math.Geometry.Grid as G
 import qualified Math.Geometry.GridMap as M
 import Math.Geometry.GridMap.Lazy ( lazyGridMap )
 import Text.Read
 import Data.List ( (\\), intersect )
 import qualified Data.Map.Strict as Map
 
-computeValidMoves :: (Eq (Index (M.BaseGrid gm b)), M.GridMap gm b) => gm b -> [Index (M.BaseGrid gm b)]
-computeValidMoves grid_map = (get_positions grid_map) \\ (used_tiles grid_map)
-    where get_positions grid_map = indices $ M.toGrid grid_map
-          used_tiles grid_map = [fst x | x <- M.toList grid_map]
+-- computeValidMoves :: (Eq (Index (M.BaseGrid gm b)), M.GridMap gm b) => gm b -> [Index (M.BaseGrid gm b)]
+-- computeValidMoves grid_map = (get_positions grid_map) \\ (used_tiles grid_map)
+--     where get_positions grid_map = indices $ M.toGrid grid_map
+--           used_tiles grid_map = [fst x | x <- M.toList grid_map]
 
 -- We should make a heuristic function here: a basic one is counting the number of connected as in here: https://www.cs.swarthmore.edu/~bryce/cs63/s16/labs/hex.html
 
@@ -44,49 +44,20 @@ computeValidMoves grid_map = (get_positions grid_map) \\ (used_tiles grid_map)
 -- 
 -- minimax_find_max f []     curr_max = curr_max
 -- minimax_find_max f (m:ms) curr_max = if (f (fst m)) > (f (fst curr_max)) then minimax_find_max f ms m else minimax_find_max f ms curr_max 
--- 
--- gridmap, heuristic, depth_limit
---minimax gm heur_fn d_lim = p1Max gm heur_fn d_lim 0  --current depth is 0
 
-minimumsFst :: Ord a => [(a, b)] -> [(a, b)]
-minimumsFst [] = []
-minimumsFst xs = filter ((==) minfst . fst) xs
-    where minfst = minimum (map fst xs)
-
--- heuristic = minimum remaining A hexes - minimum remaining B hexes and vice versa
--- inspiration: https://towardsdatascience.com/hex-creating-intelligent-adversaries-part-2-heuristics-dijkstras-algorithm-597e4dcacf93
--- candidates = list of candidate coordinates to perform heuristic function on (valid neighbors of existing point)
-minAmongCandidates grid candidates = minimumsFst $ map (\point -> (point, minDistanceToBoundary grid point)) candidates
-
--- returns minimum distance between point and a boundary point e.g 1
--- not very smart cus does not take into consideration squares already taken lmao
-minDistanceToBoundary grid point = foldr min 0 $ map (\boundaryPoint -> distance grid point boundaryPoint) (boundary grid) 
 
 -- get keys with value v from gm
-getKeys gm v = filter (==v) gm
+-- getKeys gm v = filter (==v) gm
 
---allNeighborsExceptMe grid me everyone = map (neighbors grid) (filter (!= me) everyone)
--- remove all points that are not neighbors of the other (they must be reflexive to be next to each other) then find size of list where everybody is neighbor of each other
--- doesnt rly work if theres somebody out and about w component bigger than size 2, probably needs dfs 
--- longestConnected grid char gm = length $ filter (\x -> myNeighborIsADot grid x (filtered x)) pairs
---         where pairs = map fst (getKeys gm char)
---               filtered num = filter (\a -> num /= a) pairs
+-- countConnected: find the number of pieces that are touching another piece of the same color on the board https://www.cs.swarthmore.edu/~bryce/cs63/s16/labs/hex.html
+-- for all pieces, +1 if they are touching another piece
+-- a piece is touching another piece if a coordinate belonging to a color is a neighbour of that piece
+countConnected gm board color = sum $ map (\x -> countNeighbor x) coordinates
+        where getCommonColors k v = v == color -- get list of coordinates in grid map that have the same value as color
+              coordinates = M.keys $ M.filterWithKey getCommonColors gm -- list of coordinates belonging to that color (get keys with value v from gm)
+              myNeighborIsADot = null . flip intersect coordinates . G.neighbours board -- returns boolean on whether a neighbour of the current point is a dot of the same color
+              countNeighbor me = if myNeighborIsADot me then 0 else 1
 
-myNeighborIsADot grid me listOfFriends = not (Prelude.null (intersect (neighbours grid me) listOfFriends))
-allPairsExceptMe me candidates = filter (/=me) candidates
-
--- find longest connected component, 
--- if a point has a neighbor
--- 	filter for the neighbors that are in the candidate list
--- 	do the same function for them 
--- 	if no more neighbors, return size
-longestConnectedComponent grid point candidates size 
-   | myNeighborIsADot grid point candidates = f
-   | otherwise = size
-   where f = maximum $ map (\x -> longestConnectedComponent grid x candidates (size + 1)) (neighbours grid point)
-
-h grid gm v = maximum $ map (\x -> longestConnectedComponent grid x pairs 0) pairs
-   where pairs = getKeys gm v
 
 -- ask user for how much time AI should spend
 askTime :: IO Double
@@ -112,7 +83,7 @@ askSize = do
 
 main :: IO ()
 main = do 
---	putStrLn (longestConnectedComponent hex_grid 
+      putStrLn (show (countConnected hex_b hex_grid 'A'))
 --      time <- askTime
 --      size <- askSize
 --      putStrLn (draw 26 hex_b) -- hardcoded example
@@ -132,4 +103,59 @@ draw size board = unlines [line y | y <- [0..size]] where
                     Nothing -> '-'
 
 hex_grid = paraHexGrid 11 11
-hex_b = lazyGridMap hex_grid ['a', 'b', 'c']
+hex_b = lazyGridMap hex_grid 
+    [
+        'A', 'A', 'A', '-' , '-', 'B', 'B', '-', 'B', 'B', 'A',
+        'A', 'A', 'A', '-' , '-', 'B', 'B', '-', 'B', 'B', 'A',
+        'A', 'A', 'A', '-' , '-', 'B', 'B', '-', 'B', 'B', 'A',
+        'A', 'A', 'A', '-' , '-', 'B', 'B', '-', 'B', 'B', 'A',
+        '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-',
+        '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-',
+        '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-',
+        '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', 
+        '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', 
+        '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', 
+        '-', '-', '-', '-', 'A', '-', '-', '-', '-', '-', '-'
+    ]
+
+-- minimax_find_max f []     curr_max = curr_max
+-- minimax_find_max f (m:ms) curr_max = if (f (fst m)) > (f (fst curr_max)) then minimax_find_max f ms m else minimax_find_max f ms curr_max 
+-- 
+-- gridmap, heuristic, depth_limit
+--minimax gm heur_fn d_lim = p1Max gm heur_fn d_lim 0  --current depth is 0
+
+-- minimumsFst :: Ord a => [(a, b)] -> [(a, b)]
+-- minimumsFst [] = []
+-- minimumsFst xs = filter ((==) minfst . fst) xs
+--     where minfst = minimum (map fst xs)
+-- 
+-- -- heuristic = minimum remaining A hexes - minimum remaining B hexes and vice versa
+-- -- inspiration: https://towardsdatascience.com/hex-creating-intelligent-adversaries-part-2-heuristics-dijkstras-algorithm-597e4dcacf93
+-- -- candidates = list of candidate coordinates to perform heuristic function on (valid neighbors of existing point)
+-- minAmongCandidates grid candidates = minimumsFst $ map (\point -> (point, minDistanceToBoundary grid point)) candidates
+-- 
+-- -- returns minimum distance between point and a boundary point e.g 1
+-- -- not very smart cus does not take into consideration squares already taken lmao
+-- minDistanceToBoundary grid point = foldr min 0 $ map (\boundaryPoint -> distance grid point boundaryPoint) (boundary grid) 
+--allNeighborsExceptMe grid me everyone = map (neighbors grid) (filter (!= me) everyone)
+-- remove all points that are not neighbors of the other (they must be reflexive to be next to each other) then find size of list where everybody is neighbor of each other
+-- doesnt rly work if theres somebody out and about w component bigger than size 2, probably needs dfs 
+-- longestConnected grid char gm = length $ filter (\x -> myNeighborIsADot grid x (filtered x)) pairs
+--         where pairs = map fst (getKeys gm char)
+--               filtered num = filter (\a -> num /= a) pairs
+
+-- myNeighborIsADot grid me listOfFriends = not (Prelude.null (intersect (neighbours grid me) listOfFriends))
+-- allPairsExceptMe me candidates = filter (/=me) candidates
+
+-- find longest connected component, 
+-- if a point has a neighbor
+-- 	filter for the neighbors that are in the candidate list
+-- 	do the same function for them 
+-- 	if no more neighbors, return size
+-- longestConnectedComponent grid point candidates size 
+--    | myNeighborIsADot grid point candidates = f
+--    | otherwise = size
+--    where f = maximum $ map (\x -> longestConnectedComponent grid x candidates (size + 1)) (neighbours grid point)
+-- 
+-- h grid gm v = maximum $ map (\x -> longestConnectedComponent grid x pairs 0) pairs
+--    where pairs = getKeys gm v

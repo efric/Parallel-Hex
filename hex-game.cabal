@@ -21,6 +21,7 @@ executable hex-game
   -- other-modules:
   -- other-extensions:
   build-depends:       base ^>=4.13.0.0,
-		       grid ^>=7.8.14
+		       grid ^>=7.8.14,
+	               containers
   -- hs-source-dirs:
   default-language:    Haskell2010

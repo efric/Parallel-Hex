@@ -6,7 +6,7 @@ import Math.Geometry.Grid
 import qualified Math.Geometry.GridMap as M
 import Math.Geometry.GridMap.Lazy ( lazyGridMap )
 import Text.Read
-import Data.List ( (\\) )
+import Data.List ( (\\), intersect )
 import qualified Data.Map.Strict as Map
 
 computeValidMoves :: (Eq (Index (M.BaseGrid gm b)), M.GridMap gm b) => gm b -> [Index (M.BaseGrid gm b)]
@@ -48,12 +48,6 @@ computeValidMoves grid_map = (get_positions grid_map) \\ (used_tiles grid_map)
 -- gridmap, heuristic, depth_limit
 --minimax gm heur_fn d_lim = p1Max gm heur_fn d_lim 0  --current depth is 0
 
--- lookupKey val = Map.foldrWithKey go [] where
---   go key value found =
---     if value == val
---     then val:found
---     else found
-
 minimumsFst :: Ord a => [(a, b)] -> [(a, b)]
 minimumsFst [] = []
 minimumsFst xs = filter ((==) minfst . fst) xs
@@ -68,6 +62,17 @@ minAmongCandidates grid candidates = minimumsFst $ map (\point -> (point, minDis
 -- not very smart cus does not take into consideration squares already taken lmao
 minDistanceToBoundary grid point = foldr min 0 $ map (\boundaryPoint -> distance grid point boundaryPoint) (boundary grid) 
 
+-- get keys with value v from gm
+getKeys gm v = filter (==v) gm
+
+--allNeighborsExceptMe grid me everyone = map (neighbors grid) (filter (!= me) everyone)
+-- remove all points that are not neighbors of the other (they must be reflexive to be next to each other) then find size of list where everybody is neighbor of each other
+-- doesnt rly work if theres somebody out and about w component bigger than size 2, probably needs dfs 
+longestConnected grid char gm = length $ filter (\x -> myNeighborIsADot grid x (filtered x)) pairs
+        where pairs = map fst (getKeys gm char)
+              filtered num = filter (\a -> num /= a) pairs
+
+myNeighborIsADot grid me listOfFriends = not (Prelude.null (intersect (neighbours grid me) listOfFriends))
 
 -- ask user for how much time AI should spend
 askTime :: IO Double

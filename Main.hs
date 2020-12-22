@@ -53,10 +53,10 @@ import qualified Data.Map.Strict as Map
 -- for all pieces, +1 if they are touching another piece
 -- a piece is touching another piece if a coordinate belonging to a color is a neighbour of that piece
 countConnected gm board color = sum $ map (\x -> countNeighbor x) coordinates
-        where getCommonColors k v = v == color -- get list of coordinates in grid map that have the same value as color
-              coordinates = M.keys $ M.filterWithKey getCommonColors gm -- list of coordinates belonging to that color (get keys with value v from gm)
-              myNeighborIsADot = null . flip intersect coordinates . G.neighbours board -- returns boolean on whether a neighbour of the current point is a dot of the same color
-              countNeighbor me = if myNeighborIsADot me then 0 else 1
+        where getCommonColors k v = v == color -- get kv pairs in grid map that have the same value as color
+              coordinates = M.keys $ M.filterWithKey getCommonColors gm -- get list of coordinates belonging to that color (get keys with value v from gm)
+              noNeighborIsSameColor = null . flip intersect coordinates . G.neighbours board -- returns boolean on whether a neighbour of the current point is a dot of the same color
+              countNeighbor me = if noNeighborIsSameColor me then 0 else 1
 
 
 -- ask user for how much time AI should spend
@@ -83,7 +83,7 @@ askSize = do
 
 main :: IO ()
 main = do 
-      putStrLn (show (countConnected hex_b hex_grid 'A'))
+      putStrLn (show (countConnected hex_b hex_grid 'B'))
 --      time <- askTime
 --      size <- askSize
 --      putStrLn (draw 26 hex_b) -- hardcoded example
@@ -105,9 +105,9 @@ draw size board = unlines [line y | y <- [0..size]] where
 hex_grid = paraHexGrid 11 11
 hex_b = lazyGridMap hex_grid 
     [
-        'A', 'A', 'A', '-' , '-', 'B', 'B', '-', 'B', 'B', 'A',
-        'A', 'A', 'A', '-' , '-', 'B', 'B', '-', 'B', 'B', 'A',
-        'A', 'A', 'A', '-' , '-', 'B', 'B', '-', 'B', 'B', 'A',
+        'A', 'A', 'A', '-' , '-', '-', 'B', '-', 'B', 'B', 'A',
+        'A', 'A', 'A', '-' , '-', '-', 'B', '-', 'B', 'B', 'A',
+        'A', 'A', 'A', '-' , '-', '-', 'B', '-', 'B', 'B', 'A',
         'A', 'A', 'A', '-' , '-', 'B', 'B', '-', 'B', 'B', 'A',
         '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-',
         '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-',

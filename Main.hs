@@ -68,11 +68,25 @@ getKeys gm v = filter (==v) gm
 --allNeighborsExceptMe grid me everyone = map (neighbors grid) (filter (!= me) everyone)
 -- remove all points that are not neighbors of the other (they must be reflexive to be next to each other) then find size of list where everybody is neighbor of each other
 -- doesnt rly work if theres somebody out and about w component bigger than size 2, probably needs dfs 
-longestConnected grid char gm = length $ filter (\x -> myNeighborIsADot grid x (filtered x)) pairs
-        where pairs = map fst (getKeys gm char)
-              filtered num = filter (\a -> num /= a) pairs
+-- longestConnected grid char gm = length $ filter (\x -> myNeighborIsADot grid x (filtered x)) pairs
+--         where pairs = map fst (getKeys gm char)
+--               filtered num = filter (\a -> num /= a) pairs
 
 myNeighborIsADot grid me listOfFriends = not (Prelude.null (intersect (neighbours grid me) listOfFriends))
+allPairsExceptMe me candidates = filter (/=me) candidates
+
+-- find longest connected component, 
+-- if a point has a neighbor
+-- 	filter for the neighbors that are in the candidate list
+-- 	do the same function for them 
+-- 	if no more neighbors, return size
+longestConnectedComponent grid point candidates size 
+   | myNeighborIsADot grid point candidates = f
+   | otherwise = size
+   where f = maximum $ map (\x -> longestConnectedComponent grid x candidates (size + 1)) (neighbours grid point)
+
+h grid gm v = maximum $ map (\x -> longestConnectedComponent grid x pairs 0) pairs
+   where pairs = getKeys gm v
 
 -- ask user for how much time AI should spend
 askTime :: IO Double
@@ -98,6 +112,7 @@ askSize = do
 
 main :: IO ()
 main = do 
+--	putStrLn (longestConnectedComponent hex_grid 
 --      time <- askTime
 --      size <- askSize
 --      putStrLn (draw 26 hex_b) -- hardcoded example

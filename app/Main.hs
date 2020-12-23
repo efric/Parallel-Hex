@@ -6,14 +6,13 @@ import qualified Math.Geometry.Grid as G
 import qualified Math.Geometry.GridMap as M
 import Math.Geometry.GridMap.Lazy ( lazyGridMap )
 import Text.Read
-import Data.List ( (\\), intersect, maximumBy )
-import qualified Data.Map.Strict as Map
-import Data.Typeable
+import Data.List (intersect, maximumBy )
 import Control.Parallel.Strategies
 
+computeValidMoves :: M.GridMap gm Char => gm Char -> gm Char
 computeValidMoves gm = M.filter (\v -> v /= 'A' && v /= 'B' ) gm
 
--- these guys return tuples
+maxPA :: (M.GridMap gm Char, Num a, Ord a, Ord (G.Index (M.BaseGrid gm Char)), Ord b) => gm Char -> t -> a -> a -> (gm Char -> t -> Char -> b) -> (b, b)
 maxPA gm board max_depth curr_depth heur_func = do
         if curr_depth >= max_depth then
             ( heur_func gm board 'A', heur_func gm board 'B')
@@ -35,7 +34,7 @@ maxPA gm board max_depth curr_depth heur_func = do
 
 
 
-
+maxPB :: (M.GridMap gm Char, Num a1, Ord a1, Ord (G.Index (M.BaseGrid gm Char)), Ord a2) => gm Char -> t -> a1 -> a1 -> (gm Char -> t -> Char -> a2) -> (a2, a2)
 maxPB gm board max_depth curr_depth heur_func = do
         if curr_depth >= max_depth then
             (heur_func gm board 'A', heur_func gm board 'B')
@@ -52,7 +51,14 @@ maxPB gm board max_depth curr_depth heur_func = do
                 let board_max_value_B = maximumBy ( \(_, (_,heur_b_1) ) (_, (_,heur_b_2 ) ) -> compare heur_b_1 heur_b_2  ) board_values 
                 (snd board_max_value_B)
 
-
+minimax_decision :: (M.GridMap gm Char, Num a1,
+                           Ord (G.Index (M.BaseGrid gm Char)), Ord a1, Ord a2) =>
+                          gm Char
+                          -> t
+                          -> Char
+                          -> (gm Char -> t -> Char -> a2)
+                          -> a1
+                          -> (gm Char, (a2, a2))
 minimax_decision gm board color heuristic max_depth = do
 
     let valid_moves = computeValidMoves gm
@@ -78,7 +84,14 @@ minimax_decision gm board color heuristic max_depth = do
             board_max_value_B
 
 
-
+par_minimax_decision :: (M.GridMap gm Char, Num a1,
+                               Ord (G.Index (M.BaseGrid gm Char)), Ord a1, Ord a2) =>
+                              gm Char
+                              -> t
+                              -> Char
+                              -> (gm Char -> t -> Char -> a2)
+                              -> a1
+                              -> (gm Char, (a2, a2))
 par_minimax_decision gm board color heuristic max_depth = do
 
     let valid_moves = computeValidMoves gm
@@ -104,7 +117,17 @@ par_minimax_decision gm board color heuristic max_depth = do
 
             board_max_value_B
             
-                   
+par_playGame :: (M.GridMap gm Char, Num a1, Num a2,
+                       Ord (G.Index (M.BaseGrid gm Char)), Ord a2, Ord a3, Eq a1,
+                       G.Index (M.BaseGrid gm Char) ~ (Int, Int)) =>
+                      Int
+                      -> gm Char
+                      -> t
+                      -> Char
+                      -> (gm Char -> t -> Char -> a3)
+                      -> (gm Char -> t -> (gm Char -> t -> Char -> a3) -> a1)
+                      -> a2
+                      -> IO ()
 par_playGame b_size gm board color heur_fn go_fn max_depth = do
     
     let game_over = go_fn gm board heur_fn
@@ -126,9 +149,20 @@ par_playGame b_size gm board color heur_fn go_fn max_depth = do
                     playGame b_size decision_gm board 'A' heur_fn go_fn max_depth
         1 -> putStrLn "A wins"
         2 -> putStrLn "B wins"
+        _ -> error "Error in game processing"
 
 
-
+playGame :: (M.GridMap gm Char, Num a1, Num a2,
+                   Ord (G.Index (M.BaseGrid gm Char)), Ord a2, Ord a3, Eq a1,
+                   G.Index (M.BaseGrid gm Char) ~ (Int, Int)) =>
+                  Int
+                  -> gm Char
+                  -> t
+                  -> Char
+                  -> (gm Char -> t -> Char -> a3)
+                  -> (gm Char -> t -> (gm Char -> t -> Char -> a3) -> a1)
+                  -> a2
+                  -> IO ()
 playGame b_size gm board color heur_fn go_fn max_depth = do
 
     let game_over = go_fn gm board heur_fn
@@ -150,9 +184,10 @@ playGame b_size gm board color heur_fn go_fn max_depth = do
                     playGame b_size decision_gm board 'A' heur_fn go_fn max_depth
         1 -> putStrLn "A wins"
         2 -> putStrLn "B wins"
+        _ -> error "Error in game processing"
 
 
-
+basicGameOver :: (M.GridMap gm Char, Ord a, Num p) => gm Char -> t -> (gm Char -> t -> Char -> a) -> p
 basicGameOver gm board heur_fn = case (M.toList (computeValidMoves gm)) of
                             [] -> if heur_fn gm board 'A' >= heur_fn gm board 'B' then 1 else 2
                             _  -> 0    
@@ -166,8 +201,9 @@ basicGameOver gm board heur_fn = case (M.toList (computeValidMoves gm)) of
 -- countConnected: find the number of pieces that are touching another piece of the same color on the board https://www.cs.swarthmore.edu/~bryce/cs63/s16/labs/hex.html
 -- for all pieces, +1 if they are touching another piece
 -- a piece is touching another piece if a coordinate belonging to a color is a neighbour of that piece
+countConnected :: (M.GridMap gm v, Ord (G.Index g), Eq v, Num a, G.Grid g, G.Index (M.BaseGrid gm v) ~ G.Index g) => gm v -> g -> v -> a
 countConnected gm board color = sum $ map (\x -> countNeighbor x) coordinates
-        where getCommonColors k v = v == color -- get kv pairs in grid map that have the same value as color
+        where getCommonColors _ v = v == color -- get kv pairs in grid map that have the same value as color
               coordinates = M.keys $ M.filterWithKey getCommonColors gm -- get list of coordinates belonging to that color (get keys with value v from gm)
               noNeighborIsSameColor = null . flip intersect coordinates . G.neighbours board -- returns boolean on whether a neighbour of the current point is a dot of the same color
               countNeighbor me = if noNeighborIsSameColor me then 0 else 1
@@ -227,8 +263,7 @@ main = do
       
 
 
--- not sure how to do function signature w external library yet..
--- draw :: Int -> GridMap -> String basically
+draw :: (M.GridMap gm Char, G.Index (M.BaseGrid gm Char) ~ (Int, Int)) => Int -> gm Char -> String
 draw size board = unlines [line y | y <- [0..size]] where
     line 0 = (' ':) $ take size ['A'..] >>= (:" ") --draw top legend
     line y = replicate y ' ' ++ --white space for formatting

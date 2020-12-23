@@ -22,11 +22,11 @@ maxPA gm board max_depth curr_depth heur_func = do
                 let valid_moves = computeValidMoves gm
             
                 -- valid_boards is of type [GridMap]
-                let valid_boards = map (\k -> M.insert k 'A' gm) (M.keys valid_moves) `using` parList rseq
+                let valid_boards = map (\k -> M.insert k 'A' gm) (M.keys valid_moves) 
 
 
                 -- board_values is of "type" [(GridMap, (Heuristic for A, Heuristic for B) )]
-                let board_values = map ( \grid-> ( grid, ( maxPB (grid) (board) ( max_depth ) ( curr_depth + 1 ) ( heur_func ) ) ) ) valid_boards `using` parList rseq
+                let board_values = map ( \grid-> ( grid, ( maxPB (grid) (board) ( max_depth ) ( curr_depth + 1 ) ( heur_func ) ) ) ) valid_boards 
                 -- computes max, since comparisons are required here rseq is enough since it will need to evaluate to normal form here
                 let board_max_value_A = maximumBy ( \(_,(heur_a_1,_)) (_,(heur_a_2,_)) -> compare heur_a_1 heur_a_2) board_values 
 
@@ -44,10 +44,10 @@ maxPB gm board max_depth curr_depth heur_func = do
                 let valid_moves = computeValidMoves gm
             
                 -- valid_boards is of type [GridMap]
-                let valid_boards = map (\k -> M.insert k 'B' gm) (M.keys valid_moves)`using` parList rseq
+                let valid_boards = map (\k -> M.insert k 'B' gm) (M.keys valid_moves)
 
                 -- board_values is of "type" [(GridMap, (Heuristic for A, Heuristic for B) )]
-                let board_values = map ( \grid-> ( grid, ( maxPA  (grid) (board) ( max_depth ) ( curr_depth + 1 ) ( heur_func ) ) ) ) valid_boards `using` parList rseq
+                let board_values = map ( \grid-> ( grid, ( maxPA  (grid) (board) ( max_depth ) ( curr_depth + 1 ) ( heur_func ) ) ) ) valid_boards 
 
                 let board_max_value_B = maximumBy ( \(_, (_,heur_b_1) ) (_, (_,heur_b_2 ) ) -> compare heur_b_1 heur_b_2  ) board_values 
                 (snd board_max_value_B)
@@ -59,8 +59,33 @@ minimax_decision gm board color heuristic max_depth = do
 
     if color == 'A' then
         do
-            let valid_boards = map (\k -> M.insert k 'A' gm) (M.keys valid_moves) `using` parList rseq
+            let valid_boards = map (\k -> M.insert k 'A' gm) (M.keys valid_moves) 
 
+            let board_values = map ( \grid-> ( grid, ( maxPB  (grid) (board) ( max_depth ) ( 1 ) ( heuristic ) ) ) ) valid_boards 
+
+            let board_max_value_A = maximumBy ( \(_,(heur_a_1,_)) (_,(heur_a_2,_)) -> compare heur_a_1 heur_a_2) board_values
+
+            board_max_value_A
+            
+    else
+        do
+            let valid_boards = map (\k -> M.insert k 'B' gm) (M.keys valid_moves)  
+ 
+
+            let board_values = map ( \grid-> ( grid, ( maxPA  (grid) (board) ( max_depth ) ( 1 ) ( heuristic ) ) ) ) valid_boards 
+            let board_max_value_B = maximumBy ( \(_, (_,heur_b_1) ) (_, (_,heur_b_2 ) ) -> compare heur_b_1 heur_b_2  ) board_values 
+
+            board_max_value_B
+
+
+
+par_minimax_decision gm board color heuristic max_depth = do
+
+    let valid_moves = computeValidMoves gm
+
+    if color == 'A' then
+        do
+            let valid_boards = map (\k -> M.insert k 'A' gm) (M.keys valid_moves) `using` parList rseq
 
             let board_values = map ( \grid-> ( grid, ( maxPB  (grid) (board) ( max_depth ) ( 1 ) ( heuristic ) ) ) ) valid_boards  `using` parList rseq
 
@@ -80,10 +105,32 @@ minimax_decision gm board color heuristic max_depth = do
             board_max_value_B
             
                    
+par_playGame b_size gm board color heur_fn go_fn max_depth = do
+    
+    let game_over = go_fn gm board heur_fn
+
+    case game_over of 
+        0 ->  if color == 'A' then
+                do 
+                    let decision_gm_val = par_minimax_decision gm board color heur_fn max_depth
+                    let decision_gm = fst decision_gm_val
+                    putStrLn $ draw b_size decision_gm
+
+                    playGame b_size decision_gm board 'B' heur_fn go_fn max_depth
+              else
+                do
+                    let decision_gm_val = par_minimax_decision gm board color heur_fn max_depth
+                    let decision_gm = fst decision_gm_val
+                    putStrLn $ draw b_size decision_gm
+
+                    playGame b_size decision_gm board 'A' heur_fn go_fn max_depth
+        1 -> putStrLn "A wins"
+        2 -> putStrLn "B wins"
 
 
 
 playGame b_size gm board color heur_fn go_fn max_depth = do
+
     let game_over = go_fn gm board heur_fn
 
     case game_over of 
@@ -127,12 +174,12 @@ countConnected gm board color = sum $ map (\x -> countNeighbor x) coordinates
 
 
 -- ask user for how much time AI should spend
-askTime :: IO Double
+askTime :: IO Integer
 askTime = do
-    putStrLn "How many seconds should the AI have to compute each move? (Default is 0.2)"
+    putStrLn "How deep should the AI have to compute each move? (Default is 2)"
     response <- getLine
     case response of
-        "" -> return 0.2
+        "" -> return 2
         s -> case readMaybe s of --parse input
             Just n -> return n --if number, return that number
             Nothing -> askTime --if it aint, ask again
@@ -148,17 +195,37 @@ askSize = do
             Just n -> return n
             Nothing -> askSize
 
+askParallel :: IO Integer
+askParallel = do
+    putStrLn "Should we run it parallel? (0=no, 1=yes)"
+    response <- getLine
+    case response of
+        "" -> return 0
+        s -> case readMaybe s of 
+                Just n -> return n
+                Nothing -> askParallel
+
 main :: IO ()
 main = do 
-      putStrLn (show (countConnected hex_b hex_grid 'B'))
-      playGame 11 hex_b hex_grid 'A' (countConnected) (basicGameOver) 2
+    max_depth <- askTime
+    pre_size <- askSize
+    is_parallel <- askParallel
+    let size = fromIntegral pre_size
+    let hex_b = paraHexGrid size size
+    let hex_grid = lazyGridMap hex_b (take (size*size) (repeat '-'))
 
---      time <- askTime
---      size <- askSize
---      putStrLn (draw 26 hex_b) -- hardcoded example
---      putStrLn (draw 26 (M.insert (3,3) 'a' hex_b))
+    if is_parallel == 1 then
+        do
+            par_playGame size hex_grid hex_b 'A' (countConnected) (basicGameOver) max_depth
+            return ()
 
-      return ()
+    else
+        do
+            playGame size hex_grid hex_b 'A' (countConnected) (basicGameOver) max_depth
+            return ()
+
+      
+
 
 -- not sure how to do function signature w external library yet..
 -- draw :: Int -> GridMap -> String basically
@@ -172,18 +239,3 @@ draw size board = unlines [line y | y <- [0..size]] where
                     Just a -> a -- change this w actual data type used by value (this one needs FlexibleContexts)
                     Nothing -> '-'
 
-hex_grid = paraHexGrid 11 11
-hex_b = lazyGridMap hex_grid 
-    [
-        'A', 'A', 'A', '-' , '-', '-', 'B', '-', 'B', 'B', 'A',
-        'A', 'A', 'A', '-' , '-', '-', 'B', '-', 'B', 'B', 'A',
-        'A', 'A', 'A', '-' , '-', '-', 'B', '-', 'B', 'B', 'A',
-        'A', 'A', 'A', '-' , '-', 'B', 'B', '-', 'B', 'B', 'A',
-        '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-',
-        '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-',
-        '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-',
-        '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', 
-        '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', 
-        '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', 
-        '-', '-', '-', '-', 'A', '-', '-', '-', '-', '-', '-'
-    ]

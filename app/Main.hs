@@ -12,13 +12,16 @@ import Control.Parallel.Strategies
 computeValidMoves :: M.GridMap gm Char => gm Char -> gm Char
 computeValidMoves gm = M.filter (\v -> v /= 'A' && v /= 'B' ) gm
 
-maxPA :: (M.GridMap gm Char, Num a, Ord a, Ord (G.Index (M.BaseGrid gm Char)), Ord b) => gm Char -> t -> a -> a -> (gm Char -> t -> Char -> b) -> (b, b)
+maxPA :: (M.GridMap gm Char, Ord (G.Index (M.BaseGrid gm Char)),
+                Ord b) =>
+               gm Char -> t -> Int -> Int -> (gm Char -> t -> Char -> b) -> (b, b)
 maxPA gm board max_depth curr_depth heur_func = do
-        if curr_depth >= max_depth then
+        let valid_moves = computeValidMoves gm
+
+        if curr_depth >= max_depth || length (M.keys valid_moves) < max_depth then
             ( heur_func gm board 'A', heur_func gm board 'B')
         else
             do
-                let valid_moves = computeValidMoves gm
             
                 -- valid_boards is of type [GridMap]
                 let valid_boards = map (\k -> M.insert k 'A' gm) (M.keys valid_moves) 
@@ -34,14 +37,16 @@ maxPA gm board max_depth curr_depth heur_func = do
 
 
 
-maxPB :: (M.GridMap gm Char, Num a1, Ord a1, Ord (G.Index (M.BaseGrid gm Char)), Ord a2) => gm Char -> t -> a1 -> a1 -> (gm Char -> t -> Char -> a2) -> (a2, a2)
+maxPB :: (M.GridMap gm Char, Ord (G.Index (M.BaseGrid gm Char)),
+                Ord b) =>
+               gm Char -> t -> Int -> Int -> (gm Char -> t -> Char -> b) -> (b, b)
 maxPB gm board max_depth curr_depth heur_func = do
-        if curr_depth >= max_depth then
+        let valid_moves = computeValidMoves gm
+
+        if curr_depth >= max_depth || length (M.keys valid_moves) < max_depth then
             (heur_func gm board 'A', heur_func gm board 'B')
         else
-            do
-                let valid_moves = computeValidMoves gm
-            
+            do            
                 -- valid_boards is of type [GridMap]
                 let valid_boards = map (\k -> M.insert k 'B' gm) (M.keys valid_moves)
 
@@ -51,14 +56,14 @@ maxPB gm board max_depth curr_depth heur_func = do
                 let board_max_value_B = maximumBy ( \(_, (_,heur_b_1) ) (_, (_,heur_b_2 ) ) -> compare heur_b_1 heur_b_2  ) board_values 
                 (snd board_max_value_B)
 
-minimax_decision :: (M.GridMap gm Char, Num a1,
-                           Ord (G.Index (M.BaseGrid gm Char)), Ord a1, Ord a2) =>
+minimax_decision :: (M.GridMap gm Char,
+                           Ord (G.Index (M.BaseGrid gm Char)), Ord a) =>
                           gm Char
                           -> t
                           -> Char
-                          -> (gm Char -> t -> Char -> a2)
-                          -> a1
-                          -> (gm Char, (a2, a2))
+                          -> (gm Char -> t -> Char -> a)
+                          -> Int
+                          -> (gm Char, (a, a))
 minimax_decision gm board color heuristic max_depth = do
 
     let valid_moves = computeValidMoves gm
@@ -84,14 +89,15 @@ minimax_decision gm board color heuristic max_depth = do
             board_max_value_B
 
 
-par_minimax_decision :: (M.GridMap gm Char, Num a1,
-                               Ord (G.Index (M.BaseGrid gm Char)), Ord a1, Ord a2) =>
+par_minimax_decision :: (M.GridMap gm Char,
+                               Ord (G.Index (M.BaseGrid gm Char)), Ord a) =>
                               gm Char
                               -> t
                               -> Char
-                              -> (gm Char -> t -> Char -> a2)
-                              -> a1
-                              -> (gm Char, (a2, a2))
+                              -> (gm Char -> t -> Char -> a)
+                              -> Int
+                              -> (gm Char, (a, a))
+
 par_minimax_decision gm board color heuristic max_depth = do
 
     let valid_moves = computeValidMoves gm
@@ -100,7 +106,7 @@ par_minimax_decision gm board color heuristic max_depth = do
         do
             let valid_boards = map (\k -> M.insert k 'A' gm) (M.keys valid_moves) `using` parList rseq
 
-            let board_values = map ( \grid-> ( grid, ( maxPB  (grid) (board) ( max_depth ) ( 1 ) ( heuristic ) ) ) ) valid_boards  `using` parList rseq
+            let board_values = parMap rpar ( \grid-> ( grid, ( maxPB  (grid) (board) ( max_depth ) ( 1 ) ( heuristic ) ) ) ) valid_boards  --`using` parList rpar
 
             let board_max_value_A = maximumBy ( \(_,(heur_a_1,_)) (_,(heur_a_2,_)) -> compare heur_a_1 heur_a_2) board_values
 
@@ -111,23 +117,24 @@ par_minimax_decision gm board color heuristic max_depth = do
             let valid_boards = map (\k -> M.insert k 'B' gm) (M.keys valid_moves)  `using` parList rseq
  
 
-            let board_values = map ( \grid-> ( grid, ( maxPA  (grid) (board) ( max_depth ) ( 1 ) ( heuristic ) ) ) ) valid_boards  `using` parList rseq
+            let board_values = parMap rpar ( \grid-> ( grid, ( maxPA  (grid) (board) ( max_depth ) ( 1 ) ( heuristic ) ) ) ) valid_boards  --`using` parList rpar
 
             let board_max_value_B = maximumBy ( \(_, (_,heur_b_1) ) (_, (_,heur_b_2 ) ) -> compare heur_b_1 heur_b_2  ) board_values 
 
             board_max_value_B
             
-par_playGame :: (M.GridMap gm Char, Num a1, Num a2,
-                       Ord (G.Index (M.BaseGrid gm Char)), Ord a2, Ord a3, Eq a1,
+par_playGame :: (Num a1, M.GridMap gm Char,
+                       Ord (G.Index (M.BaseGrid gm Char)), Ord a2, Eq a1,
                        G.Index (M.BaseGrid gm Char) ~ (Int, Int)) =>
                       Int
                       -> gm Char
                       -> t
                       -> Char
-                      -> (gm Char -> t -> Char -> a3)
-                      -> (gm Char -> t -> (gm Char -> t -> Char -> a3) -> a1)
-                      -> a2
+                      -> (gm Char -> t -> Char -> a2)
+                      -> (gm Char -> t -> (gm Char -> t -> Char -> a2) -> a1)
+                      -> Int
                       -> IO ()
+
 par_playGame b_size gm board color heur_fn go_fn max_depth = do
     
     let game_over = go_fn gm board heur_fn
@@ -152,16 +159,16 @@ par_playGame b_size gm board color heur_fn go_fn max_depth = do
         _ -> error "Error in game processing"
 
 
-playGame :: (M.GridMap gm Char, Num a1, Num a2,
-                   Ord (G.Index (M.BaseGrid gm Char)), Ord a2, Ord a3, Eq a1,
+playGame :: (Num a1, M.GridMap gm Char,
+                   Ord (G.Index (M.BaseGrid gm Char)), Ord a2, Eq a1,
                    G.Index (M.BaseGrid gm Char) ~ (Int, Int)) =>
                   Int
                   -> gm Char
                   -> t
                   -> Char
-                  -> (gm Char -> t -> Char -> a3)
-                  -> (gm Char -> t -> (gm Char -> t -> Char -> a3) -> a1)
-                  -> a2
+                  -> (gm Char -> t -> Char -> a2)
+                  -> (gm Char -> t -> (gm Char -> t -> Char -> a2) -> a1)
+                  -> Int
                   -> IO ()
 playGame b_size gm board color heur_fn go_fn max_depth = do
 
@@ -243,10 +250,11 @@ askParallel = do
 
 main :: IO ()
 main = do 
-    max_depth <- askTime
+    pre_depth <- askTime
+    let max_depth = fromIntegral pre_depth
     pre_size <- askSize
     is_parallel <- askParallel
-    let size = fromIntegral pre_size
+    let size = fromIntegral pre_size 
     let hex_b = paraHexGrid size size
     let hex_grid = lazyGridMap hex_b (take (size*size) (repeat '-'))
 

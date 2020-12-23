@@ -61,9 +61,8 @@ minimax_decision gm board color heuristic max_depth = do
 
             let board_max_value_A = maximumBy ( \(_,(heur_a_1,_)) (_,(heur_a_2,_)) -> compare heur_a_1 heur_a_2) board_values
 
-
-            putStrLn $ show $ fst board_max_value_A
-            return ()
+            board_max_value_A
+            
     else
         do
             let valid_boards = map (\k -> M.insert k 'B' gm) (M.keys valid_moves)
@@ -72,10 +71,40 @@ minimax_decision gm board color heuristic max_depth = do
 
             let board_max_value_B = maximumBy ( \(_, (_,heur_b_1) ) (_, (_,heur_b_2 ) ) -> compare heur_b_1 heur_b_2  ) board_values
 
-
-            putStrLn $ show $ fst board_max_value_B
-            return ()
+            board_max_value_B
+            
                    
+
+
+
+playGame b_size gm board color heur_fn go_fn max_depth = do
+    let game_over = go_fn gm board heur_fn
+
+    case game_over of 
+        0 ->  if color == 'A' then
+                do 
+                    let decision_gm_val = minimax_decision gm board color heur_fn max_depth
+                    let decision_gm = fst decision_gm_val
+                    putStrLn $ draw b_size decision_gm
+
+                    playGame b_size decision_gm board 'B' heur_fn go_fn max_depth
+              else
+                do
+                    let decision_gm_val = minimax_decision gm board color heur_fn max_depth
+                    let decision_gm = fst decision_gm_val
+                    putStrLn $ draw b_size decision_gm
+
+                    playGame b_size decision_gm board 'A' heur_fn go_fn max_depth
+        1 -> putStrLn "A wins"
+        2 -> putStrLn "B wins"
+
+
+
+basicGameOver gm board heur_fn = case (M.toList (computeValidMoves gm)) of
+                            [] -> if heur_fn gm board 'A' >= heur_fn gm board 'B' then 1 else 2
+                            _  -> 0    
+        
+
 
 
 -- get keys with value v from gm
@@ -116,7 +145,7 @@ askSize = do
 main :: IO ()
 main = do 
       putStrLn (show (countConnected hex_b hex_grid 'B'))
-      minimax_decision hex_b hex_grid 'B' (countConnected) 2
+      playGame 11 hex_b hex_grid 'A' (countConnected) (basicGameOver) 2
 
 
 

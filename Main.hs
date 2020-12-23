@@ -6,44 +6,76 @@ import qualified Math.Geometry.Grid as G
 import qualified Math.Geometry.GridMap as M
 import Math.Geometry.GridMap.Lazy ( lazyGridMap )
 import Text.Read
-import Data.List ( (\\), intersect )
+import Data.List ( (\\), intersect, maximumBy )
 import qualified Data.Map.Strict as Map
-
--- computeValidMoves :: (Eq (Index (M.BaseGrid gm b)), M.GridMap gm b) => gm b -> [Index (M.BaseGrid gm b)]
--- computeValidMoves grid_map = (get_positions grid_map) \\ (used_tiles grid_map)
---     where get_positions grid_map = indices $ M.toGrid grid_map
---           used_tiles grid_map = [fst x | x <- M.toList grid_map]
-
--- We should make a heuristic function here: a basic one is counting the number of connected as in here: https://www.cs.swarthmore.edu/~bryce/cs63/s16/labs/hex.html
+import Data.Typeable
 
 
--- getSameColor color grid_list = [fst x | x <- grid_list, snd x == color]
--- 
--- 
--- p1Max = pxMax 'A'
--- 
--- p2Max = pxMax 'B'
--- 
--- 
--- pxMax color grid_map heuristic_fn depth_limit curr_depth = 
---     if curr_depth >= depth_limit 
---     then ( (heuristic_fn 'A' grid_map, heuristic_fn 'B' grid_map), (-1, -1) ) --do the heuristic function
--- 	--heuristic function for calling A and B, returns a number (3 etc)
---     else 
---         case color of
---             'A' -> minimax_find_max (fst) (recPxMap1) (head recPxMap1) -- list of tuples
---             'B' -> minimax_find_max (snd) (recPxMap2) (head recPxMap2) 
---     where 
---             anti_color = case color of 
---                             'A' -> 'B'
---                             'B' -> 'A'
---             -- The next two functions return, basically, a list of ( (heuristic value for A, heuristic value for B), move), where move is of the type (a,b) in parallelogram notation
---             recPxMap1 = map (\move -> ( fst (p2Max (M.insert move color grid_map) heuristic_fn depth_limit (curr_depth + 1) ), move) )  (computeValidMoves grid_map) -- call min/max (whatever the opposite)
---             recPxMap2 = map (\move -> ( fst (p1Max (M.insert move color grid_map) heuristic_fn depth_limit (curr_depth + 1) ), move) )  (computeValidMoves grid_map) 
---                                                             
--- 
--- minimax_find_max f []     curr_max = curr_max
--- minimax_find_max f (m:ms) curr_max = if (f (fst m)) > (f (fst curr_max)) then minimax_find_max f ms m else minimax_find_max f ms curr_max 
+computeValidMoves gm = M.filter (\v -> v /= 'A' && v /= 'B' ) gm
+
+maxPA gm board max_depth curr_depth heur_func = do
+        if curr_depth >= max_depth then
+            ( heur_func gm board 'A', heur_func gm board 'B')
+        else
+            do
+                let valid_moves = computeValidMoves gm
+            
+                -- valid_boards is of type [GridMap]
+                let valid_boards = map (\k -> M.insert k 'A' gm) (M.keys valid_moves)
+
+                -- board_values is of "type" [(GridMap, (Heuristic for A, Heuristic for B) )]
+                let board_values = map ( \grid-> ( grid, ( maxPB (grid) (board) ( max_depth ) ( curr_depth + 1 ) ( heur_func ) ) ) ) valid_boards
+                
+                let board_max_value_A = maximumBy ( \(_,(heur_a_1,_)) (_,(heur_a_2,_)) -> compare heur_a_1 heur_a_2) board_values
+                
+                (snd board_max_value_A)
+
+
+
+
+maxPB gm board max_depth curr_depth heur_func = do
+        if curr_depth >= max_depth then
+            (heur_func gm board 'A', heur_func gm board 'B')
+        else
+            do
+                let valid_moves = computeValidMoves gm
+            
+                -- valid_boards is of type [GridMap]
+                let valid_boards = map (\k -> M.insert k 'B' gm) (M.keys valid_moves)
+                -- board_values is of "type" [(GridMap, (Heuristic for A, Heuristic for B) )]
+                let board_values = map ( \grid-> ( grid, ( maxPA  (grid) (board) ( max_depth ) ( curr_depth + 1 ) ( heur_func ) ) ) ) valid_boards
+
+                let board_max_value_B = maximumBy ( \(_, (_,heur_b_1) ) (_, (_,heur_b_2 ) ) -> compare heur_b_1 heur_b_2  ) board_values
+                (snd board_max_value_B)
+
+
+minimax_decision gm board color heuristic max_depth = do
+
+    let valid_moves = computeValidMoves gm
+
+    if color == 'A' then
+        do
+            let valid_boards = map (\k -> M.insert k 'A' gm) (M.keys valid_moves)
+
+            let board_values = map ( \grid-> ( grid, ( maxPB  (grid) (board) ( max_depth ) ( 1 ) ( heuristic ) ) ) ) valid_boards
+
+            let board_max_value_A = maximumBy ( \(_,(heur_a_1,_)) (_,(heur_a_2,_)) -> compare heur_a_1 heur_a_2) board_values
+
+
+            putStrLn $ show $ fst board_max_value_A
+            return ()
+    else
+        do
+            let valid_boards = map (\k -> M.insert k 'B' gm) (M.keys valid_moves)
+
+            let board_values = map ( \grid-> ( grid, ( maxPA  (grid) (board) ( max_depth ) ( 1 ) ( heuristic ) ) ) ) valid_boards
+
+            let board_max_value_B = maximumBy ( \(_, (_,heur_b_1) ) (_, (_,heur_b_2 ) ) -> compare heur_b_1 heur_b_2  ) board_values
+
+
+            putStrLn $ show $ fst board_max_value_B
+            return ()
+                   
 
 
 -- get keys with value v from gm
@@ -84,10 +116,22 @@ askSize = do
 main :: IO ()
 main = do 
       putStrLn (show (countConnected hex_b hex_grid 'B'))
+      minimax_decision hex_b hex_grid 'B' (countConnected) 2
+
+
+
+      
+
+
+
+
+
+
 --      time <- askTime
 --      size <- askSize
 --      putStrLn (draw 26 hex_b) -- hardcoded example
 --      putStrLn (draw 26 (M.insert (3,3) 'a' hex_b))
+
       return ()
 
 -- not sure how to do function signature w external library yet..
@@ -117,6 +161,35 @@ hex_b = lazyGridMap hex_grid
         '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', 
         '-', '-', '-', '-', 'A', '-', '-', '-', '-', '-', '-'
     ]
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 -- minimax_find_max f []     curr_max = curr_max
 -- minimax_find_max f (m:ms) curr_max = if (f (fst m)) > (f (fst curr_max)) then minimax_find_max f ms m else minimax_find_max f ms curr_max 
@@ -159,3 +232,38 @@ hex_b = lazyGridMap hex_grid
 -- 
 -- h grid gm v = maximum $ map (\x -> longestConnectedComponent grid x pairs 0) pairs
 --    where pairs = getKeys gm v
+
+
+
+
+
+-- We should make a heuristic function here: a basic one is counting the number of connected as in here: https://www.cs.swarthmore.edu/~bryce/cs63/s16/labs/hex.html
+
+
+-- getSameColor color grid_list = [fst x | x <- grid_list, snd x == color]
+-- 
+-- 
+-- p1Max = pxMax 'A'
+-- 
+-- p2Max = pxMax 'B'
+-- 
+-- 
+-- pxMax color grid_map heuristic_fn depth_limit curr_depth = 
+--     if curr_depth >= depth_limit 
+--     then ( (heuristic_fn 'A' grid_map, heuristic_fn 'B' grid_map), (-1, -1) ) --do the heuristic function
+-- 	--heuristic function for calling A and B, returns a number (3 etc)
+--     else 
+--         case color of
+--             'A' -> minimax_find_max (fst) (recPxMap1) (head recPxMap1) -- list of tuples
+--             'B' -> minimax_find_max (snd) (recPxMap2) (head recPxMap2) 
+--     where 
+--             anti_color = case color of 
+--                             'A' -> 'B'
+--                             'B' -> 'A'
+--             -- The next two functions return, basically, a list of ( (heuristic value for A, heuristic value for B), move), where move is of the type (a,b) in parallelogram notation
+--             recPxMap1 = map (\move -> ( fst (p2Max (M.insert move color grid_map) heuristic_fn depth_limit (curr_depth + 1) ), move) )  (computeValidMoves grid_map) -- call min/max (whatever the opposite)
+--             recPxMap2 = map (\move -> ( fst (p1Max (M.insert move color grid_map) heuristic_fn depth_limit (curr_depth + 1) ), move) )  (computeValidMoves grid_map) 
+--                                                             
+-- 
+-- minimax_find_max f []     curr_max = curr_max
+-- minimax_find_max f (m:ms) curr_max = if (f (fst m)) > (f (fst curr_max)) then minimax_find_max f ms m else minimax_find_max f ms curr_max 
